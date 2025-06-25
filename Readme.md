@@ -142,7 +142,8 @@ Size, MiB | Write, MiB/s | Read, MiB/s
 mmap
 
 fstream
-----=
+-------
+```
 Configuration:
   Functoins:     fstream
   Min      1073741824 B (1.00 GiB)
@@ -152,7 +153,7 @@ Configuration:
   Iterations:    1
   Use RAM disk:  no
   Plot graph:    yes
-
+```
 Size, MiB | Write, MiB/s | Read, MiB/s
 ----------|--------------|------------
 1024 MB   | 579.929      | 286.428
