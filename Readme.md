@@ -34,8 +34,8 @@ Options:
   
   `-h`, `--help`                           Show the help message and exit;
 
-BUilding
---
+Building
+--------
 
 1. Download the matplotlib-cpp header-only library:
 
