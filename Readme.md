@@ -23,6 +23,7 @@ Options:
   operation:
   
   `rw` - read/write
+  `prw` - pread/pwrite
   `mm` - mmap
   `fs` - fstream
   
