@@ -19,7 +19,7 @@ Options:
   
   `-buf=<size[KMG]>`, `--buf=<size[KMG]>`  Memory buffer size (default: 1M)
   
-  `-f=<[rw|mm|fs]>`, `--f=<[rw|mm|fs]>`    Functions for file 
+  `-f=<[rw|prw|mm|fs]>`, `--f=<[rw|prw|mm|fs]>`    Functions for file 
   operation:
   
   `rw` - read/write
