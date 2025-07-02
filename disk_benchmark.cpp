@@ -152,7 +152,7 @@ int unmount_ramdisk(bool verbose) {
     return 0;
 }
 
-enum class Func { ReadWrite, FStream, MMap };
+enum class Func { ReadWrite, PReadWrite, FStream, MMap };
 
 struct Config {
     size_t minSize = 1024 * 1024;      // 1M
@@ -172,8 +172,9 @@ void printHelp(const char *programName) {
          << "  -max=<size[KMG]>, --max=<size[KMG]>  Maximum file size (default: 10M)\n"
          << "  -s=<size[KMG]>, --s=<size[KMG]>      Stride size (default: 1M)\n"
          << "  -buf=<size[KMG]>, --buf=<size[KMG]>  Memory buffer size (default: 1M)\n"
-         << "  -f=<[rw|mm|fs]>, --f=<[rw|mm|fs]>    Functions for file operation:\n"
+         << "  -f=<[rw|prw|mm|fs]>, --f=<[rw|prw|mm|fs]>    Functions for file operation:\n"
          << "      rw - read/write\n"
+         << "      prw - pread/pwrite\n"
          << "      mm - mmap\n"
          << "      fs - fstream\n"
          << "  -n=<N>, --n=<N>                      Number of iterations (default: 1)\n"
@@ -207,6 +208,8 @@ Func parseFunc(const string &str) {
         throw invalid_argument("Empty function string");
     if (str == "rw")
         return Func::ReadWrite;
+    if (str == "prw")
+        return Func::PReadWrite;        
     if (str == "mm")
         return Func::MMap;
     if (str == "fs")
@@ -453,7 +456,6 @@ uint8_t mm_read_file(const string &filename, vector<unsigned char> &buffer,
 
 void rw_write_file(const string &filename, vector<unsigned char> &buffer,
     const size_t size_bytes) {
-
     // ==== Write ====
     int fd = open(filename.c_str(), O_CREAT | O_WRONLY, 0644);
     if (fd < 0) {
@@ -499,6 +501,53 @@ const size_t size_bytes) {
     return sink;
 }
 
+void prw_write_file(const string &filename, vector<unsigned char> &buffer,
+    const size_t size_bytes) {
+    // ==== Write ====
+    int fd = open(filename.c_str(), O_CREAT | O_WRONLY, 0644);
+    if (fd < 0) {
+        perror("open write");
+        throw string_view("rw_write_file/open");
+    }
+
+    // Disable caching on macOS
+    fcntl(fd, F_NOCACHE, 1);
+
+    for (size_t offset = 0; offset < size_bytes; offset += buffer.size()) {
+        if (pwrite(fd, buffer.data(), buffer.size(), offset) != buffer.size()) {
+            perror("write");
+            close(fd);
+            throw string_view("rw_write_file/write");
+        }
+    }
+    fsync(fd);
+    close(fd);
+}
+
+unsigned char prw_read_file(const string &filename, vector<unsigned char> &buffer,
+        const size_t size_bytes) {
+    // ==== Read ====
+    int fd = open(filename.c_str(), O_RDONLY);
+    if (fd < 0) {
+        perror("open read");
+        throw string_view("rw_read_file/open");
+    }
+
+    fcntl(fd, F_NOCACHE, 1);
+    unsigned char sink = 0;
+    for (size_t offset = 0; offset < size_bytes;
+        offset += buffer.size()) {
+        if (pread(fd, buffer.data(), buffer.size(), offset) != buffer.size()) {
+            perror("read");
+            close(fd);
+            throw string_view("rw_read_file/read");
+        }
+        sink ^= buffer[0];
+    }
+    close(fd);
+    return sink;
+}
+
 void cleanup(vector<string>& filenames) {
     for (const auto &filename : filenames) {
         unlink(filename.c_str());
@@ -508,6 +557,7 @@ void cleanup(vector<string>& filenames) {
 string_view func_name(Func func) {
     switch(func) {
         case Func::ReadWrite: return "read/write";
+        case Func::PReadWrite: return "pread/pwrite";
         case Func::FStream: return "fstream";
         case Func::MMap: return "mmap";
     }
@@ -555,11 +605,11 @@ int main(int argc, char *argv[]) {
         vector<double> read_speeds;
 
         auto test_write = array<function<void(const string&,
-        vector<unsigned char>&, const size_t)>, 3>{rw_write_file, fs_write_file,
+        vector<unsigned char>&, const size_t)>, 4>{rw_write_file, prw_write_file, fs_write_file,
             mm_write_file}[int(config.function)];
 
         auto test_read = array<function<uint8_t(const string&,
-            vector<unsigned char>&, const size_t)>, 3>{rw_read_file, fs_read_file,
+            vector<unsigned char>&, const size_t)>, 4>{rw_read_file, prw_read_file, fs_read_file,
                 mm_read_file}[int(config.function)];
 
         for (size_t size_bytes = config.minSize; size_bytes <= config.maxSize;
